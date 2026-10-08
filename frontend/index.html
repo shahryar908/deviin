@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>envd tester</title>
+  <style>
+    body { font-family: monospace; max-width: 700px; margin: 2em auto; }
+    textarea { width: 100%; height: 80px; }
+    section { border: 1px solid #ccc; padding: 1em; margin-bottom: 1em; }
+    pre { background: #111; color: #0f0; padding: 1em; min-height: 2em; white-space: pre-wrap; }
+    input { width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>envd tester</h1>
+
+  <p>Base URL: <input id="base" value="http://localhost:3000"></p>
+
+  <section>
+    <h3>POST /api/execute/sync</h3>
+    <textarea id="syncCmd">["echo", "hello from sync"]</textarea><br>
+    <button onclick="runSync()">Run</button>
+    <pre id="syncOut"></pre>
+  </section>
+
+  <section>
+    <h3>POST /api/execute/js</h3>
+    <textarea id="jsCode">console.log("hello from js")</textarea><br>
+    <button onclick="runJS()">Run</button>
+    <pre id="jsOut"></pre>
+  </section>
+
+  <section>
+    <h3>GET /api/execute/async?cmd=... (SSE)</h3>
+    <textarea id="asyncCmd">echo 1 & echo 2 & echo 3</textarea><br>
+    <button onclick="runAsync()">Run</button>
+    <pre id="asyncOut"></pre>
+  </section>
+
+  <script>
+    const base = () => document.getElementById('base').value;
+
+    async function runSync() {
+      const out = document.getElementById('syncOut');
+      out.textContent = 'running...';
+      try {
+        const res = await fetch(base() + '/api/execute/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: JSON.parse(document.getElementById('syncCmd').value) })
+        });
+        const t = await res.text(); try { out.textContent = JSON.stringify(JSON.parse(t), null, 2); } catch { out.textContent = t; }
+      } catch (e) { out.textContent = 'ERROR: ' + e; }
+    }
+
+    async function runJS() {
+      const out = document.getElementById('jsOut');
+      out.textContent = 'running...';
+      try {
+        const res = await fetch(base() + '/api/execute/js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: document.getElementById('jsCode').value })
+        });
+        const t = await res.text(); try { out.textContent = JSON.stringify(JSON.parse(t), null, 2); } catch { out.textContent = t; }
+      } catch (e) { out.textContent = 'ERROR: ' + e; }
+    }
+
+    async function runAsync() {
+      const out = document.getElementById('asyncOut');
+      out.textContent = '';
+      try {
+        const res = await fetch(base() + '/api/execute/async?cmd=' + encodeURIComponent(document.getElementById('asyncCmd').value));
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          out.textContent += decoder.decode(value);
+        }
+      } catch (e) { out.textContent = 'ERROR: ' + e; }
+    }
+  </script>
+</body>
+</html>
